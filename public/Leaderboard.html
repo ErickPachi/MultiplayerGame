@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link rel="stylesheet" href="Style.css"> 
+    <link rel="icon" href="/Images/cube.ico" />
+    <title>Game Leaderboard</title>
+</head>
+
+<body>
+    <header><div class="Logo"><img id="logopic" src="/Images/CubeImg.png" alt="Cube"/>
+  </div> <a href="/"><span class="tittle">First Game</span></a> 
+  <div id="navdiv">
+      <input type="checkbox" id="navInput" onclick="navBar()"/>
+      <div class="nav-icon" id="navIcon" ><div></div></div>
+  </div>
+  </header>
+      <div id="mySidenav" class="sidenav">
+          <a href="/" class="nav_link">Home</a>
+          <a href="/Leaderboard" class="nav_link">Leaderboard</a>
+          <a href="/Configuration" class="nav_link">Configuration</a>
+      </div>
+    <div class="page noMargin" onclick="closeNav()">
+        <h2>Leaderboard</h2>
+        <br />
+        <div class="row col-12 noMargin">
+            <div class="col-12 col-sm-6 noMargin Leaderboard">
+                <h4>Top 10 Players:</h4>
+                <table id="top10board" class="col-12 col-sm-8 offset-sm-2 col-xl-6 offset-xl-3">
+                </table>
+            </div>
+            <div class="col-12 col-sm-6 noMargin Leaderboard">
+                <h4>Your Details:</h4>
+                <table id="highestScoreboard" class="col-12 col-sm-8 offset-sm-2 col-xl-6 offset-xl-3">
+                </table>
+                <table id="historyboard" class="col-12 col-sm-8 offset-sm-2 col-xl-6 offset-xl-3">
+                </table>
+            </div>
+        </div>
+        <br />
+        <br />
+
+        <div class="col- offset- col-xl-4 offset-xl-4">
+            <a href="/Index.html"><div class="btn"><div>Go Back</div></div></a>
+        </div>
+    </div>
+    <br />
+
+    <footer className="footer"> &copy; Erick's First Game | <a href="https://www.linkedin.com/in/erick-da-fonseca-pachi-3a0331163/" class="BLinks">LinkedIn</a> - <a href="https://erickpachi.github.io/Portfolio" class="BLinks">Portfolio</a> - <a href="https://github.com/ErickPachi" class="BLinks">Github</a></footer>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/pagesJS.js"></script>
+<script type="module">
+
+import creategame from './GameLogic/Game.js'
+
+    //-------------------------------------update top 10 players
+    const game = creategame();
+    const maxResults = 10;
+    const socket = io();
+
+    //get all the game details & remove player
+    socket.on('setup', (state) => {
+        const playerId = socket.id;
+        socket.emit('removePlayer', playerId);
+        game.setState(state);
+        UpdateTables(game);
+    });
+
+    socket.on('remove-player', (command) => {
+            game.removePlayer(command);    
+    });
+    
+function UpdateTables(game) {
+        
+    var PlayerID = Object.keys(game.state.Top10Players);
+    var Number_of_Playes = PlayerID.length;
+
+    let top10Players = game.state.Top10Players;
+
+    //header
+    let top10TableInnerHTML = `
+                <tr class="firstline sideborder orange">
+                    <th>Username:</th>
+                    <th>Score:</th>
+                </tr>
+    `
+
+    //players array
+    const playersArray = []
+
+    for (let playerId in game.state.Top10Players) {
+        const player = game.state.Top10Players[playerId]
+        playersArray.push({
+            playerId: playerId,
+            username: player.username,
+            score: player.score
+        })
+    }
+
+    const playersSortedByScore = playersArray.sort( (first, second) => {
+        if (first.score < second.score) {
+            return 1
+        }
+
+        if (first.score > second.score) {
+            return -1
+        }
+
+        return 0
+    })
+
+    const topScorePlayers = playersSortedByScore.slice(0, maxResults);
+
+    top10TableInnerHTML = topScorePlayers.reduce((stringFormed, player) => {
+        return stringFormed + `
+                <tr>
+                    <td>${player.username}</td>
+                    <td>${player.score}</td>
+                </tr>
+        `
+    }, top10TableInnerHTML);
+
+    document.getElementById("top10board").innerHTML = top10TableInnerHTML;
+
+//-------------------------------------Highest Score Table
+    const HighestScore = JSON.parse(localStorage.getItem('highestScore'));
+    let HighestScoreTable = `
+                    <tr class="sideborder">
+                        <th class="tableHeader">Highest Score:</th>
+                    </tr>
+    `
+    HighestScoreTable += `
+                    <tr>
+                        <td>${HighestScore ? HighestScore : '0'}</td>
+                    </tr>
+                    `
+    document.getElementById("highestScoreboard").innerHTML = HighestScoreTable;
+}
+</script>
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/Images/cube.ico" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>My Game</title>
+    <link rel="stylesheet" href="Style.css"> 
+</head>
+<body id="body">
+    <header id="header"><div class="Logo"><img id="logopic" src="/Images/CubeImg.png" alt="Cube"/>
+    </div> <a href="/"><span class="tittle">First Game</span></a> 
+    <div id="navdiv">
+        <input type="checkbox" id="navInput" onclick="naveBar()"/>
+        <div class="nav-icon" id="navIcon" ><div></div></div>
+    </div>
+    </header>
+        <div id="mySidenav2" class="sidenav sidenav2">
+            <a href="/" class="nav_link">Home</a>
+            <a href="/Leaderboard" class="nav_link">Leaderboard</a>
+            <a href="/Configuration" class="nav_link">Configuration</a>
+            <a onclick="openMobileMode()" class="nav_link">Mobile Mode</a>
+        </div>
+    <div class="page" onclick="closeNave()">
+        <div id="game">
+            <canvas id="canvas"></canvas>
+            <button onclick="openMobileMode()" class="btn-fullScreen-open" id="btnOpen"><i class="material-icons">fullscreen</i></button>
+            <button onclick="closeMobileMode()" class="btn-fullScreen-close" id="btnClose"><i class="material-icons">fullscreen_exit</i></button>
+            
+            <div class="Homebtns" id="Homebtns">
+            <a href="/" id="btnBack"><div class="btn"><div>Go Back</div></div></a>
+            </div>
+            <div class="scores">
+                <table id="score-table">
+                </table>
+            </div>
+            <div class="MobileButtonsDiv" id="mobilebtns">
+                <button onmousedown="MoveUp()" onmouseup="stopMoving()" class="MobileButtons btnUp"><i class="material-icons">arrow_upward</i></button>
+                <button onmousedown="MoveDown()" onmouseup="stopMoving()" class="MobileButtons btnDown"><i class="material-icons">arrow_downward</i></button>
+                <button onmousedown="MoveLeft()" onmouseup="stopMoving()" class="MobileButtons btnLeft"><i class="material-icons">arrow_back</i></button>
+                <button onmousedown="MoveRight()" onmouseup="stopMoving()" class="MobileButtons btnRight"><i class="material-icons">arrow_forward</i></button>
+            </div>
+        </div>
+</div>
+    <footer id="footer" className="footer"> &copy; Erick's First Game | <a href="https://www.linkedin.com/in/erick-da-fonseca-pachi-3a0331163/" class="BLinks">LinkedIn</a> - <a href="https://erickpachi.github.io/Portfolio" class="BLinks">Portfolio</a> - <a href="https://github.com/ErickPachi" class="BLinks">Github</a></footer>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/pagesJS.js"></script>
+
+    <script type="module">
+        import createkeyboardListener from './GameLogic/Inputs.js'
+        import creategame from './GameLogic/Game.js'
+        import renderScreen, { setupScreen } from './GameLogic/Print.js'
+        
+        const PointAudio = new Audio('./Sounds/PointSound.mp3');
+        const BigPointAudio = new Audio('./Sounds/BigPointSound.mp3');
+
+        const game = creategame();
+        const keyboardListener = createkeyboardListener(document);
+        const gameScreen = document.getElementById("score-table");
+        const canvas = document.getElementById("canvas");
+
+        const username = JSON.parse(sessionStorage.getItem('username'));
+        const color = JSON.parse(sessionStorage.getItem('player_color'));
+
+        //Personalised Configuration
+        const AllowPersonalisedColors = JSON.parse(localStorage.getItem('AllowPersonalisedColors')) ? JSON.parse(localStorage.getItem('AllowPersonalisedColors')) : false;
+        const DefaultPlayersColor = JSON.parse(localStorage.getItem('DefaultPlayersColor')) ? JSON.parse(localStorage.getItem('DefaultPlayersColor')) : '#000000';
+        const FruitColor = JSON.parse(localStorage.getItem('FruitColor')) ? JSON.parse(localStorage.getItem('FruitColor')) : '#ff0000';
+
+        //Managing connections
+        const socket = io();
+        
+        socket.on('connect', (command) => {
+            const playerId = socket.id;
+            console.log(`> Player connected with id: ${playerId}`);
+
+                const player_details = {
+                    playerId: playerId,
+                    username: username,
+                    color: color
+                }
+            socket.emit('Update_player_details', (player_details));
+            setupScreen(canvas, game);
+            renderScreen(canvas, game, requestAnimationFrame, playerId , gameScreen, FruitColor, DefaultPlayersColor, AllowPersonalisedColors);
+        });
+
+        socket.on('disconnect', () => {
+            keyboardListener.unsubscribeAll();
+        })
+
+        //get all the game details
+        socket.on('setup', (state) => {
+            const playerId = socket.id;
+            game.setState(state)
+            keyboardListener.registerPlayerId(playerId);
+            keyboardListener.subscribe(game.movePlayer);
+            //send the movement to the server
+            keyboardListener.subscribe((command) => {
+                socket.emit('move-player', command);
+            });
+        });
+
+        socket.on('add-player', (command) => {
+            game.addPlayer(command);    
+        });
+
+        socket.on('remove-player', (command) => {
+            game.removePlayer(command);    
+        });
+
+        socket.on('move-player', (command) => {
+            const playerId = socket.id;
+            if(playerId !== command.playerId) {
+                game.movePlayer(command); 
+            }   
+        });
+
+        socket.on('add-fruit', (command) => {
+            game.addFruit(command);    
+        });
+
+        socket.on('remove-fruit', (command) => {
+            playAudio();
+            SaveHighestScore();
+            game.removeFruit(command);    
+        });
+        
+        function playAudio() {
+            const playerId = socket.id;
+            const score = game.state.players[playerId].score;
+            const points = score % 10;
+            //play point audio
+                if (points !== 0) {
+                    PointAudio.pause()
+                    PointAudio.currentTime = 0
+                    PointAudio.play()
+                }
+                if (points === 0) {
+                    PointAudio.pause()
+                    BigPointAudio.pause()
+                    BigPointAudio.currentTime = 0
+                    BigPointAudio.play()
+                }
+        }
+
+        function SaveHighestScore() {
+            const playerId = socket.id;
+            const score = game.state.players[playerId].score;
+            //save the highest score
+            let highestScore = JSON.parse(localStorage.getItem('highestScore')) ? JSON.parse(localStorage.getItem('highestScore')) : 0;
+            if(score > highestScore) {
+                localStorage.setItem('highestScore', JSON.stringify(score));
+            }
+        }
+    </script>
+    <script>
+
+        //---Full screen buttons (Potential mobile players) ---//
+        var speed = 100;
+        var MoveInterval;
+        //set interval (holding)
+        function MoveUp() {
+            goUp();
+            MoveInterval = setInterval(goUp, speed);
+        }
+        function MoveDown() {
+            goDown();
+            MoveInterval = setInterval(goDown, speed);
+        }
+        function MoveLeft() {
+            goLeft();
+            MoveInterval = setInterval(goLeft, speed);
+        }
+        function MoveRight() {
+            goRight();
+            MoveInterval = setInterval(goRight, speed);
+        }
+        //emit events
+        function goUp() {
+                var event = new KeyboardEvent('keydown', {
+                    key: 'ArrowUp'
+                });
+                document.dispatchEvent(event);
+            }
+        function goDown() {
+            var event = new KeyboardEvent('keydown', {
+                key: 'ArrowDown'
+            });
+            document.dispatchEvent(event);
+        }
+        function goLeft() {
+            var event = new KeyboardEvent('keydown', {
+                key: 'ArrowLeft'
+            });
+            document.dispatchEvent(event);
+        }
+        function goRight() {
+            var event = new KeyboardEvent('keydown', {
+                key: 'ArrowRight'
+            });
+            document.dispatchEvent(event);
+        }
+        //step interval
+        function stopMoving() {
+                clearInterval(MoveInterval);
+        }
+
+    </script>
+</body>
+</html>
